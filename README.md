@@ -1,32 +1,34 @@
-# 点心杯 — 粤语 ASR
+# 点心杯 — 粤语 ASR (AI DimSum Labs)
 
-队伍: [待填]
+**赛道**: 粤语及其内部方言分片的语音识别模型构建  
+**基线模型**: whisper-small  
+**初赛提交**: result.jsonl  
+**复赛提交**: output.jsonl + predict.py + 模型权重  
 
-## 方法
+## 技术方案
 
-基于 whisper-small + LoRA 微调 + 字符级 N-Gram 语言模型 Rescoring
+**核心思路：粤语音频 → 粤语汉字 → 繁→简转换 → 粤→普词汇映射**
 
-### 技术栈
-- **基座模型**: openai/whisper-small
-- **微调**: LoRA (decoder self-attention Q/V, rank=8, α=16)
-- **后处理**: 218 条字符映射 + 67 条短语映射
-- **语言模型**: 字符级 3-gram (8839 条粤语文本训练)
-- **推理**: whisper → 字符映射 → 短语替换 → LM rescoring
+相较于直接微调模型（过拟合风险高），采用**纯推理后处理路线**：
+
+1. **whisper-small 零样本推理** — 不做任何微调，避免过拟合
+2. **繁→简字符映射（245条）** — 将 Whisper 输出的繁体字转为简体（字形编码级，无语义风险）
+3. **粤→普短语映射（44条）** — 将 Whisper 输出的粤语特有词转为普通话等价词（嘢→东西、钟意→喜欢、唔该→谢谢等）
 
 ### 文件结构
-- `src/inference.py` — 推理入口
-- `src/lm_rescore.py` — LM rescoring 模块
-- `data/char_mapping.json` — 字符映射 (218 条)
-- `data/phrase_mapping.json` — 短语映射 (67 条)
-- `lm/cantonese_charlm.pkl` — 字符级语言模型
-- `checkpoints/` — LoRA 权重
-- `outputs/` — 预测结果
+```
+├── README.md              # 本文档
+├── requirements.txt       # 依赖环境
+├── data/
+│   ├── char_mapping.json  # 繁→简映射 (245条)
+│   └── phrase_mapping.json # 粤→普映射 (44条)
+├── outputs/
+│   └── result.jsonl       # 初赛提交结果
+└── src/
+    └── inference.py       # 推理脚本
+```
 
-### 本地 CER
-- 基线 (whisper-small 零样本): 19.03%
-- LoRA + 后处理: 18.88%
-- LoRA + 后处理 + LM rescoring: 13.99% (忽略标点)
-
-### 竞赛得分
-- v1 (LoRA + 后处理): 74.22 分
-- v2 (LM rescoring): 提交中
+### 评测标准
+- 系统自动做 繁→简 转换 + 去标点
+- 编辑距离 ≤ 2 字符即通过
+- 实时排行榜更新
